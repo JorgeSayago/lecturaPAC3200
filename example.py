@@ -2,11 +2,10 @@ import time
 import struct
 import psycopg2
 from pymodbus.client.sync import ModbusTcpClient
-from config import DB_PARAMS, TABLE_NAME, MULTIMETERS
-
+from config import DB_PARAMS, TABLE_NAME, MULTIMETERS, REGISTERS
 
 # -----------------------------------------
-# DECODIFICAR FLOAT32 LITTLE-ENDIAN SIEMENS
+# DECODIFICAR FLOAT32 (formato Siemens)
 # -----------------------------------------
 
 def decode_float32(registers):
@@ -14,9 +13,8 @@ def decode_float32(registers):
     packed = struct.pack('>I', raw)
     return struct.unpack('!f', packed)[0]
 
-
 # -----------------------------------------
-# LEER FLOAT32 DESDE MODBUS
+# LEER REGISTRO FLOAT32
 # -----------------------------------------
 
 def read_float(client, address, unit=1):
@@ -25,87 +23,72 @@ def read_float(client, address, unit=1):
         return None
     return decode_float32(res.registers)
 
-
 # -----------------------------------------
-# INSERTAR EN LA TABLA PRINCIPAL pac_measurements
-# AHORA TAMBIÉN INSERTA CORRIENTE
+# INSERTAR EN POSTGRESQL
 # -----------------------------------------
 
-def insert_data(device, v1, v2, v3, c1, c2, c3, p_kw):
-    conn = psycopg2.connect(
-        host=DB_PARAMS["host"],
-        database=DB_PARAMS["database"],
-        user=DB_PARAMS["user"],
-        password=DB_PARAMS["password"]
-    )
+def insert_data(device, v1, v2, v3, c1, c2, c3, p_act, p_react):
+    conn = psycopg2.connect(**DB_PARAMS)
     cur = conn.cursor()
 
     sql = f"""
         INSERT INTO {TABLE_NAME}
         (device, voltage_l1, voltage_l2, voltage_l3,
-         current_l1, current_l2, current_l3, power_kw)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+         current_l1, current_l2, current_l3,
+         power_active_kw, power_reactive_kvar)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """
 
-    cur.execute(sql, (device, v1, v2, v3, c1, c2, c3, p_kw))
+    cur.execute(sql, (device, v1, v2, v3, c1, c2, c3, p_act, p_react))
 
     conn.commit()
     cur.close()
     conn.close()
-
 
 # -----------------------------------------
 # LOOP PRINCIPAL
 # -----------------------------------------
 
 def main():
-    m = MULTIMETERS[0]  # PRIMER PAC
-
+    m = MULTIMETERS[0]
     client = ModbusTcpClient(m["ip"], port=m["port"], timeout=m["timeout"])
 
     print(f"Conectando a {m['ip']}...")
     if not client.connect():
-        print("No se pudo conectar al PAC3220")
+        print("NO se pudo conectar al PAC3220")
         return
 
-    print("Logging activo cada 5 s\n")
-
-    # Direcciones Modbus PAC3200/3220
-    REG_VA = 1     # Voltage L1
-    REG_VB = 3     # Voltage L2
-    REG_VC = 5     # Voltage L3
-    REG_PTOT = 15  # Potencia total
-
-    REG_I1 = 7     # Corriente L1
-    REG_I2 = 9     # Corriente L2
-    REG_I3 = 11    # Corriente L3
+    print("Lectura activa cada 5 segundos...\n")
 
     intervalo_seg = 5
     intervalo_horas = intervalo_seg / 3600.0
+
     gasto_total_kwh = 0.0
 
     while True:
-        # Voltajes
-        v1 = read_float(client, REG_VA)
-        v2 = read_float(client, REG_VB)
-        v3 = read_float(client, REG_VC)
+        v1 = read_float(client, REGISTERS["voltage_l1"])
+        v2 = read_float(client, REGISTERS["voltage_l2"])
+        v3 = read_float(client, REGISTERS["voltage_l3"])
 
-        # Corrientes
-        c1 = read_float(client, REG_I1)
-        c2 = read_float(client, REG_I2)
-        c3 = read_float(client, REG_I3)
+        c1 = read_float(client, REGISTERS["current_l1"])
+        c2 = read_float(client, REGISTERS["current_l2"])
+        c3 = read_float(client, REGISTERS["current_l3"])
 
-        # Potencia
-        pkw = read_float(client, REG_PTOT)
+        p_act = read_float(client, REGISTERS["power_active_kw"])
+        p_react = read_float(client, REGISTERS["power_reactive_kvar"])
 
-        # Guardar en BD
-        insert_data(m["device"], v1, v2, v3, c1, c2, c3, pkw)
+        insert_data(
+            m["device"], v1, v2, v3,
+            c1, c2, c3,
+            p_act, p_react
+        )
 
-        # Actualizar gasto eléctrico
-        if pkw is not None:
-            gasto_total_kwh += pkw * intervalo_horas
+        # Acumulación gasto eléctrico
+        if p_act is not None:
+            gasto_total_kwh += p_act * intervalo_horas
 
         print(f"Gasto total acumulado: {gasto_total_kwh:.6f} kWh")
+        print(f"V1={v1:.2f}  A1={c1:.2f}  kW={p_act:.2f}  kVAR={p_react:.2f}")
 
         time.sleep(intervalo_seg)
 
