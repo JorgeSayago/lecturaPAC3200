@@ -66,17 +66,33 @@ def main():
     gasto_total_kwh = 0.0
 
     while True:
+        # ========== VOLTAJES ==========
         v1 = read_float(client, REGISTERS["voltage_l1"])
-        v2 = read_float(client, REGISTERS["voltage_l2"])
-        v3 = read_float(client, REGISTERS["voltage_l3"])
+        if v1 is None:
+            v1 = 0
 
+        # duplicar porque solo L1 está conectado
+        v2 = v1
+        v3 = v1
+
+        # ========== CORRIENTES ==========
         c1 = read_float(client, REGISTERS["current_l1"])
-        c2 = read_float(client, REGISTERS["current_l2"])
-        c3 = read_float(client, REGISTERS["current_l3"])
+        if c1 is None:
+            c1 = 0
 
+        c2 = c1
+        c3 = c1
+
+        # ========== POTENCIAS ==========
         p_act = read_float(client, REGISTERS["power_active_kw"])
-        p_react = read_float(client, REGISTERS["power_reactive_kvar"])
+        if p_act is None:
+            p_act = 0
 
+        p_react = read_float(client, REGISTERS["power_reactive_kvar"])
+        if p_react is None:
+            p_react = 0
+
+        # Insertar en base de datos
         insert_data(
             m["device"], v1, v2, v3,
             c1, c2, c3,
@@ -84,11 +100,11 @@ def main():
         )
 
         # Acumulación gasto eléctrico
-        if p_act is not None:
-            gasto_total_kwh += p_act * intervalo_horas
+        gasto_total_kwh += p_act * intervalo_horas
 
+        # Mostrar valores
         print(f"Gasto total acumulado: {gasto_total_kwh:.6f} kWh")
-        print(f"V1={v1:.2f}  A1={c1:.2f}  kW={p_act:.2f}  kVAR={p_react:.2f}")
+        print(f"V1={v1:.2f}  A1={c1:.2f}  kW={p_act:.2f}  kVAR={p_react:.2f}\n")
 
         time.sleep(intervalo_seg)
 
