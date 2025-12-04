@@ -9,7 +9,6 @@ DB_PARAMS = {
 
 TABLE_NAME = "pac_measurements"
 
-# Registros Modbus PAC3220 / PAC3200
 REGISTERS = {
     "voltage_l1": 1,
     "voltage_l2": 3,
