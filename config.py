@@ -1,4 +1,6 @@
-from libs.sentron_pac3200 import PAC3200_MEASUREMENTS
+# -----------------------------------------
+# CONFIGURACIÓN GENERAL
+# -----------------------------------------
 
 DB_PARAMS = { 
     "host": "localhost",
@@ -9,16 +11,29 @@ DB_PARAMS = {
 
 TABLE_NAME = "pac_measurements"
 
+# -----------------------------------------
+# REGISTROS MODBUS (PAC3220)
+# -----------------------------------------
+
 REGISTERS = {
+    # Voltajes
     "voltage_l1": 1,
     "voltage_l2": 3,
     "voltage_l3": 5,
+
+    # Corrientes
     "current_l1": 7,
     "current_l2": 9,
     "current_l3": 11,
-    "power_active_kw": 15,
-    "power_reactive_kvar": 17
+
+    # 🔥 POTENCIA REAL (NEGATIVA POR CT INVERTIDO)
+    "power_active_kw": 169,       # 0x00A9
+    "power_reactive_kvar": 175    # 0x00AF
 }
+
+# -----------------------------------------
+# DISPOSITIVOS
+# -----------------------------------------
 
 MULTIMETERS = [
     {
