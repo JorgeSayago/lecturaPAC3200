@@ -38,7 +38,7 @@ REGISTERS = {
 MULTIMETERS = [
     {
         "device": "device_1",
-        "ip": "192.168.1.30",
+        "ip": "192.168.1.37",
         "port": 502,
         "timeout": 3
     }
